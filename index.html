@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Чат-бот</title>
+
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+    />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+    <style>
+      html,
+      body,
+      main {
+        min-height: 100%;
+        height: 100%;
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+      }
+
+      #content {
+          width: 100%;
+      }
+
+      .bot-speech {
+          text-align: right;
+      }
+
+      .d-none {
+        display: none;
+      }
+
+      .mt-1 {
+        margin-top: 5px;
+      }
+
+      .mt-2 {
+        margin-top: 10px;
+      }
+
+      .mt-3 {
+        margin-top: 15px;
+      }
+
+      #dialog-container > p {
+          margin-top: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="nav-wrapper">
+        <a href="#" class="brand-logo">Chat</a>
+      </div>
+    </nav>
+
+    <main>
+      <div id="preloader" class="preloader-wrapper big active mt-3">
+        <div class="spinner-layer spinner-red-only">
+          <div class="circle-clipper left">
+            <div class="circle"></div>
+          </div>
+          <div class="gap-patch">
+            <div class="circle"></div>
+          </div>
+          <div class="circle-clipper right">
+            <div class="circle"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="content" class="d-none">
+        <div class="row">
+          <div class="col s12">
+            <div class="card">
+              <div class="card-content">
+                <h4>Диалог</h4>
+                <div id="dialog-container">
+                    <p class="bot-speech">Привет! Пиши мне :)</p>
+                </div>
+              </div>
+
+              <div class="card-action">
+                <div class="row">
+                  <div class="col s12">
+                    <div class="input-field col s12">
+                        <textarea id="message" class="materialize-textarea"></textarea>
+                        <label for="textarea1">Введите сообщение</label>
+                      </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                    <div class="col s12">
+                        <a id="send" href="#">Отправить</a>
+                      </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      /**
+       * Константы, которые нам пригодятся для бизнес-логики.
+       */
+
+      // Ответы бота, сгруппированные по темам.
+      const BOT_ANSWERS = {
+        greeting: ["Привет!", "Хай!", "Здарова!", "Доброго времени суток!"],
+        noir: [
+          "Представители литературы потерянного поколения оказали большое влияние на развитие нуара",
+          "Нуар нельзя выделить в отдельный жанр кино, однако стилистические особенности этого направления очень ярко выделяются: неоднозначные персонажи, тусклое освещение, напряженная атмосфера. Не находите ничего общего с тем, где вы сейчас находитесь?)",
+          "Для того, чтобы подчеркнуть неоднозначность протагониста, операторы часто выстраивают крупные планы таким образом, что освещенной остается только одна половина лица главного героя.",
+          "Расцвет нуара приходится на послевоенный период, а последние фильмы были сняты в конце 1950-х гг.",
+          "Одной из причин кризиса нуара послужило появление цветного кино - картика в цвете выглядит совершенно по-другому, настолько, что вся магия кинематографических приемов и неоднозначность персонажей стираются.",
+          "Можно подумать, что нуар умер, однако это не совсем так - на смену ему пришел неонуар, в котором также используется преимущественно темная цветовая палитра, разбавленная ярким неоновым светом.",
+        ],
+        art: [
+          "Сиднейский оперный театр находится в сиднейской гавани на мысе Беннелонг. Это место получило такое название по имени австралийского аборигена, друга первого губернатора колонии. До 1958 года на месте театра находилось трамвайное депо, а ещё ранее — форт.",
+          "Еру́н Анто́нисон ван А́кен, более известный как Иерони́м Босх — нидерландский потомственный художник, один из крупнейших мастеров периода Северного Возрождения. Из творчества художника сохранилось около десяти картин и двенадцати рисунков.",
+          "Сальвадо́р Дали́ — испанский живописец, график, скульптор, режиссёр и писатель. Один из самых известных представителей сюрреализма. Работал над фильмами: «Андалузский пёс», «Золотой век», «Заворожённый».",
+        ],
+        music: [
+          "А Гуф умер?",
+          "Зима началась в сентябре и закончилась в мае. А может еще не закончилась, честно, я не знаю. На этот раз ровно девять месяцев подряд продолжался этот медленный снегопад.",
+        ],
+      };
+
+      // Что бот ответит, если тема не распознана.
+      const UNKNOWN_ANSWER =
+        "К сожалению, я не могу поддержать диалог на эту тему :(";
+
+      function rand(items) {
+        // "|" используется для округления до целого.
+        return items[(items.length * Math.random()) | 0];
+      }
+
+      function recognizeCategory(request) {
+        if (!request) {
+          return null;
+        }
+
+        const requestToLower = request.toLowerCase();
+
+        if (requestToLower.includes("привет")) {
+          return "greeting";
+        }
+
+        if (requestToLower.includes("нуар")) {
+          return "noir";
+        }
+
+        if (requestToLower.includes("искусств")) {
+          return "art";
+        }
+
+        if (
+          requestToLower.includes("музык") ||
+          requestToLower.includes("гуф")
+        ) {
+          return "music";
+        }
+      }
+
+      function getRandomFromCategory(categoryName) {
+        const options = BOT_ANSWERS[categoryName];
+
+        if (!options) {
+          return UNKNOWN_ANSWER;
+        }
+
+        return rand(options);
+      }
+
+      /**
+       * Вспомогательные функции для работы с DOM-элементами.
+       */
+
+      function fadeOut(element) {
+        element.style.display = "none";
+      }
+
+      function fadeIn(element, display = "block") {
+        element.style.display = display;
+      }
+
+      /**
+       * Отсюда начинается код. В нашем конкретном случае можно было не слушать DOMContentLoaded6 потому что
+       * скрипт находится в самом низу, и его исполнение не начнется раньше времени, но если перенести его в head,
+       * браузер попытается его выполнить до того, как отрисует DOM, т.е. мы будем работать с undefined.
+       */
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const preloader = document.querySelector("#preloader");
+        const content = document.querySelector("#content");
+
+        // По сути это бессмысленно, мы "типа" делаем загрузку, а через 1.5 с показываем чат.
+        setTimeout(() => {
+          fadeOut(preloader);
+          fadeIn(content); 
+
+          const dialogContainer = document.querySelector('#dialog-container');
+          const messageTextarea = document.querySelector('#message');
+          const sendButton = document.querySelector('#send');
+
+          sendButton.addEventListener('click', function(evt) {
+              console.log(evt);
+
+              evt.preventDefault();
+
+              const text = messageTextarea.value;
+              console.log(text);
+
+              messageTextarea.value = '';
+
+              const category = recognizeCategory(text);
+              const response = getRandomFromCategory(category);
+
+              const userRequest = document.createElement('p');
+              userRequest.textContent = text;
+
+              const botResponse = document.createElement('p');
+              botResponse.textContent = response;
+              botResponse.classList.add('bot-speech');
+
+              dialogContainer.insertAdjacentElement('beforeend', userRequest);
+              dialogContainer.insertAdjacentElement('beforeend', botResponse);
+          });
+        }, 1500);
+      });
+    </script>
+  </body>
+</html>
